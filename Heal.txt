@@ -1,4 +1,18 @@
+--==================================================
+-- AUTO EXECUTE AFTER SERVER TELEPORT
+--==================================================
 
+local SCRIPT_URL = "https://raw.githubusercontent.com/lingxingpubg-bit/healer/refs/heads/main/Heal.txt"
+
+if queue_on_teleport then
+    queue_on_teleport([[
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/lingxingpubg-bit/healer/refs/heads/main/Heal.txt"))()
+    ]])
+end
+
+--==================================================
+-- SOUL DRAIN AUTOMATION - CLEAN REBUILD
+--==================================================
 --==================================================
 -- SOUL DRAIN AUTOMATION - CLEAN REBUILD
 --==================================================
@@ -477,42 +491,69 @@ end)
 
 --==================================================
 -- AUTOMATIC Q/E LOOP
--- Q -> COOLDOWN -> E -> COOLDOWN -> REPEAT
+-- Q -> DETECT revitalize -> COOLDOWN
+-- E -> DETECT revitalize -> COOLDOWN -> REPEAT
 --==================================================
+
+local function waitForRevitalize()
+    while AutoEnabled do
+        local revitalize = workspace:FindFirstChild("revitalize", true)
+
+        if revitalize then
+            print(
+                "revitalize detected:",
+                revitalize:GetFullName(),
+                revitalize.ClassName
+            )
+            return true
+        end
+
+        task.wait(0.1)
+    end
+
+    return false
+end
+
+local function waitCooldown()
+    local elapsed = 0
+
+    while elapsed < Cooldown do
+        if not AutoEnabled then
+            return false
+        end
+
+        local step = math.min(0.1, Cooldown - elapsed)
+
+        task.wait(step)
+        elapsed = elapsed + step
+    end
+
+    return AutoEnabled
+end
 
 task.spawn(function()
     while true do
         if AutoEnabled then
 
+            -- Press Q
             pressKey(Enum.KeyCode.Q)
 
-            local qWait = Cooldown
-            local elapsed = 0
+            -- Wait for revitalize after Q
+            if waitForRevitalize() then
 
-            while elapsed < qWait do
-                if not AutoEnabled then
-                    break
-                end
+                -- Wait for cooldown
+                if waitCooldown() then
 
-                local step = math.min(0.1, qWait - elapsed)
-                task.wait(step)
-                elapsed = elapsed + step
-            end
+                    -- Press E
+                    pressKey(Enum.KeyCode.E)
 
-            if AutoEnabled then
-                pressKey(Enum.KeyCode.E)
+                    -- Wait for revitalize after E
+                    if waitForRevitalize() then
 
-                local eWait = Cooldown
-                elapsed = 0
+                        -- Wait for cooldown before repeating
+                        waitCooldown()
 
-                while elapsed < eWait do
-                    if not AutoEnabled then
-                        break
                     end
-
-                    local step = math.min(0.1, eWait - elapsed)
-                    task.wait(step)
-                    elapsed = elapsed + step
                 end
             end
 
