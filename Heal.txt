@@ -1,7 +1,3 @@
---==================================================
--- AUTO EXECUTE AFTER SERVER TELEPORT
---==================================================
-
 local SCRIPT_URL = "https://raw.githubusercontent.com/lingxingpubg-bit/healer/refs/heads/main/Heal.txt"
 
 if queue_on_teleport then
@@ -10,9 +6,6 @@ if queue_on_teleport then
     ]])
 end
 
---==================================================
--- SOUL DRAIN AUTOMATION - CLEAN REBUILD
---==================================================
 --==================================================
 -- SOUL DRAIN AUTOMATION - CLEAN REBUILD
 --==================================================
@@ -55,6 +48,12 @@ local resettingCharacter = false
 -- Runtime
 local hitbox
 local currentCharacter
+
+-- Auto Clicker Settings
+local AutoClickEnabled = false
+local AutoTriggerSafeZone = true -- Auto-triggers ON when entering thirdBossSafeZones OR dying
+local AutoClickDelay = 0.05
+local LockedPos = Vector2.new(605, 405) -- Default target: 605, 405
 
 --==================================================
 -- CLEAN OLD GUI
@@ -139,34 +138,38 @@ local function updateHitbox()
 end
 
 --==================================================
--- CHARACTER RESPAWN
---==================================================
-
-local function onCharacterAdded(character)
-    currentCharacter = character
-
-    if HitboxEnabled then
-        setupHitbox(character)
-    end
-end
-
-LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if LocalPlayer.Character then
-    onCharacterAdded(LocalPlayer.Character)
-end
-
---==================================================
 -- GUI
 --==================================================
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "SoulDrainAutomation"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = CoreGui
 
+-- Target Marker (Visual indicator for locked position)
+local Marker = Instance.new("Frame")
+Marker.Name = "AutoClickMarker"
+Marker.Size = UDim2.fromOffset(12, 12)
+Marker.AnchorPoint = Vector2.new(0.5, 0.5)
+Marker.Position = UDim2.fromOffset(LockedPos.X, LockedPos.Y)
+Marker.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+Marker.BackgroundTransparency = 0.2
+Marker.Visible = true
+Marker.Active = false
+Marker.Parent = ScreenGui
+
+local MarkerCorner = Instance.new("UICorner")
+MarkerCorner.CornerRadius = UDim.new(1, 0)
+MarkerCorner.Parent = Marker
+
+local MarkerStroke = Instance.new("UIStroke")
+MarkerStroke.Color = Color3.fromRGB(255, 255, 255)
+MarkerStroke.Thickness = 1.5
+MarkerStroke.Parent = Marker
+
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 200, 0, 290)
+MainFrame.Size = UDim2.new(0, 200, 0, 440)
 MainFrame.Position = UDim2.new(0.02, 0, 0.15, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
@@ -353,15 +356,15 @@ updateHitboxToggle()
 createLabel(
     "TargetLabel",
     "Target: " .. TargetName,
-    UDim2.new(0, 5, 0, 140),
-    UDim2.new(1, -10, 0, 20)
+    UDim2.new(0, 5, 0, 138),
+    UDim2.new(1, -10, 0, 18)
 )
 
 createLabel(
     "KeybindLabel",
     "Loop TP Keybind: G",
-    UDim2.new(0, 5, 0, 162),
-    UDim2.new(1, -10, 0, 20)
+    UDim2.new(0, 5, 0, 156),
+    UDim2.new(1, -10, 0, 18)
 )
 
 --==================================================
@@ -371,14 +374,14 @@ createLabel(
 local CooldownLabel = createLabel(
     "CooldownLabel",
     "Q/E Cooldown: 4.5s",
-    UDim2.new(0, 5, 0, 190),
-    UDim2.new(1, -10, 0, 20)
+    UDim2.new(0, 5, 0, 176),
+    UDim2.new(1, -10, 0, 18)
 )
 
 local SliderBackground = Instance.new("Frame")
 SliderBackground.Name = "SliderBackground"
 SliderBackground.Size = UDim2.new(1, -24, 0, 8)
-SliderBackground.Position = UDim2.new(0, 12, 0, 220)
+SliderBackground.Position = UDim2.new(0, 12, 0, 198)
 SliderBackground.BackgroundColor3 = Color3.fromRGB(65, 65, 65)
 SliderBackground.BorderSizePixel = 0
 SliderBackground.Parent = MainFrame
@@ -471,12 +474,219 @@ end)
 createLabel(
     "SliderRange",
     "1s                              10s",
-    UDim2.new(0, 5, 0, 232),
-    UDim2.new(1, -10, 0, 18)
+    UDim2.new(0, 5, 0, 208),
+    UDim2.new(1, -10, 0, 16)
 )
 
 --==================================================
--- LOOP TP KEYBIND (G)
+-- AUTO CLICKER SECTION
+--==================================================
+
+local Divider = Instance.new("Frame")
+Divider.Size = UDim2.new(1, -10, 0, 1)
+Divider.Position = UDim2.new(0, 5, 0, 228)
+Divider.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+Divider.BorderSizePixel = 0
+Divider.Parent = MainFrame
+
+local AutoClickTitle = Instance.new("TextLabel")
+AutoClickTitle.Size = UDim2.new(1, 0, 0, 20)
+AutoClickTitle.Position = UDim2.new(0, 0, 0, 232)
+AutoClickTitle.BackgroundTransparency = 1
+AutoClickTitle.Text = "Auto Clicker [H]"
+AutoClickTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoClickTitle.TextSize = 13
+AutoClickTitle.Font = Enum.Font.SourceSansBold
+AutoClickTitle.Parent = MainFrame
+
+-- Click ON/OFF Button
+local AutoClickToggleBtn = Instance.new("TextButton")
+AutoClickToggleBtn.Size = UDim2.new(0.5, -8, 0, 26)
+AutoClickToggleBtn.Position = UDim2.new(0, 5, 0, 254)
+AutoClickToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoClickToggleBtn.TextSize = 12
+AutoClickToggleBtn.Font = Enum.Font.SourceSansBold
+AutoClickToggleBtn.Parent = MainFrame
+
+-- Zone Auto-Trigger Toggle Button
+local AutoTriggerBtn = Instance.new("TextButton")
+AutoTriggerBtn.Size = UDim2.new(0.5, -8, 0, 26)
+AutoTriggerBtn.Position = UDim2.new(0.5, 3, 0, 254)
+AutoTriggerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoTriggerBtn.TextSize = 11
+AutoTriggerBtn.Font = Enum.Font.SourceSansBold
+AutoTriggerBtn.Parent = MainFrame
+
+local function UpdateAutoTriggerUI()
+    if AutoTriggerSafeZone then
+        AutoTriggerBtn.Text = "Zone Auto: ON"
+        AutoTriggerBtn.BackgroundColor3 = Color3.fromRGB(45, 110, 180)
+    else
+        AutoTriggerBtn.Text = "Zone Auto: OFF"
+        AutoTriggerBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    end
+end
+
+AutoTriggerBtn.MouseButton1Click:Connect(function()
+    AutoTriggerSafeZone = not AutoTriggerSafeZone
+    UpdateAutoTriggerUI()
+end)
+UpdateAutoTriggerUI()
+
+local function UpdateAutoClickUI()
+    if AutoClickEnabled then
+        AutoClickToggleBtn.Text = "Click: ON"
+        AutoClickToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 170, 70)
+    else
+        AutoClickToggleBtn.Text = "Click: OFF"
+        AutoClickToggleBtn.BackgroundColor3 = Color3.fromRGB(170, 50, 50)
+    end
+end
+
+local function ToggleAutoClick()
+    AutoClickEnabled = not AutoClickEnabled
+    UpdateAutoClickUI()
+end
+
+AutoClickToggleBtn.MouseButton1Click:Connect(ToggleAutoClick)
+UpdateAutoClickUI()
+
+-- X and Y Coordinate Inputs
+local XBox = Instance.new("TextBox")
+XBox.Size = UDim2.new(0.5, -8, 0, 22)
+XBox.Position = UDim2.new(0, 5, 0, 284)
+XBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+XBox.BorderSizePixel = 0
+XBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+XBox.PlaceholderText = "Target X"
+XBox.Text = tostring(LockedPos.X)
+XBox.TextSize = 12
+XBox.Font = Enum.Font.SourceSans
+XBox.Parent = MainFrame
+
+local YBox = Instance.new("TextBox")
+YBox.Size = UDim2.new(0.5, -8, 0, 22)
+YBox.Position = UDim2.new(0.5, 3, 0, 284)
+YBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+YBox.BorderSizePixel = 0
+YBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+YBox.PlaceholderText = "Target Y"
+YBox.Text = tostring(LockedPos.Y)
+YBox.TextSize = 12
+YBox.Font = Enum.Font.SourceSans
+YBox.Parent = MainFrame
+
+-- Target Coordinates Status Label
+local TargetStatus = Instance.new("TextLabel")
+TargetStatus.Size = UDim2.new(1, 0, 0, 16)
+TargetStatus.Position = UDim2.new(0, 0, 0, 310)
+TargetStatus.BackgroundTransparency = 1
+TargetStatus.Text = string.format("Locked: (%d, %d)", LockedPos.X, LockedPos.Y)
+TargetStatus.TextColor3 = Color3.fromRGB(255, 120, 120)
+TargetStatus.TextSize = 11
+TargetStatus.Font = Enum.Font.SourceSans
+TargetStatus.Parent = MainFrame
+
+local function SetLockedPosition(vec2)
+    LockedPos = vec2
+    if vec2 then
+        XBox.Text = tostring(math.floor(vec2.X))
+        YBox.Text = tostring(math.floor(vec2.Y))
+        TargetStatus.Text = string.format("Locked: (%d, %d)", vec2.X, vec2.Y)
+        TargetStatus.TextColor3 = Color3.fromRGB(255, 120, 120)
+
+        Marker.Position = UDim2.fromOffset(vec2.X, vec2.Y)
+        Marker.Visible = true
+    else
+        XBox.Text = ""
+        YBox.Text = ""
+        TargetStatus.Text = "Mode: Following Mouse"
+        TargetStatus.TextColor3 = Color3.fromRGB(120, 200, 120)
+        Marker.Visible = false
+    end
+end
+
+-- Lock Mouse / Follow Mouse Row
+local LockMouseBtn = Instance.new("TextButton")
+LockMouseBtn.Size = UDim2.new(0.5, -8, 0, 24)
+LockMouseBtn.Position = UDim2.new(0, 5, 0, 330)
+LockMouseBtn.BackgroundColor3 = Color3.fromRGB(45, 110, 180)
+LockMouseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+LockMouseBtn.Text = "Lock Mouse [J]"
+LockMouseBtn.TextSize = 11
+LockMouseBtn.Font = Enum.Font.SourceSansBold
+LockMouseBtn.Parent = MainFrame
+
+local FollowMouseBtn = Instance.new("TextButton")
+FollowMouseBtn.Size = UDim2.new(0.5, -8, 0, 24)
+FollowMouseBtn.Position = UDim2.new(0.5, 3, 0, 330)
+FollowMouseBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+FollowMouseBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+FollowMouseBtn.Text = "Follow Mouse"
+FollowMouseBtn.TextSize = 11
+FollowMouseBtn.Font = Enum.Font.SourceSans
+FollowMouseBtn.Parent = MainFrame
+
+LockMouseBtn.MouseButton1Click:Connect(function()
+    SetLockedPosition(UIS:GetMouseLocation())
+end)
+
+FollowMouseBtn.MouseButton1Click:Connect(function()
+    SetLockedPosition(nil)
+end)
+
+local function OnCoordInput()
+    local x = tonumber(XBox.Text)
+    local y = tonumber(YBox.Text)
+    if x and y then
+        SetLockedPosition(Vector2.new(x, y))
+    end
+end
+XBox.FocusLost:Connect(OnCoordInput)
+YBox.FocusLost:Connect(OnCoordInput)
+
+-- Live Safe Zone Status Indicator
+local ZoneStatusLabel = Instance.new("TextLabel")
+ZoneStatusLabel.Size = UDim2.new(1, 0, 0, 15)
+ZoneStatusLabel.Position = UDim2.new(0, 0, 0, 358)
+ZoneStatusLabel.BackgroundTransparency = 1
+ZoneStatusLabel.Text = "Zone: OUTSIDE"
+ZoneStatusLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+ZoneStatusLabel.TextSize = 11
+ZoneStatusLabel.Font = Enum.Font.SourceSansBold
+ZoneStatusLabel.Parent = MainFrame
+
+-- Safe Zone Distance Label
+local ZoneDistLabel = Instance.new("TextLabel")
+ZoneDistLabel.Size = UDim2.new(1, 0, 0, 15)
+ZoneDistLabel.Position = UDim2.new(0, 0, 0, 374)
+ZoneDistLabel.BackgroundTransparency = 1
+ZoneDistLabel.Text = "Zone Dist: N/A"
+ZoneDistLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+ZoneDistLabel.TextSize = 11
+ZoneDistLabel.Font = Enum.Font.SourceSans
+ZoneDistLabel.Parent = MainFrame
+
+-- Live Cursor Position Label
+local MouseLiveLabel = Instance.new("TextLabel")
+MouseLiveLabel.Size = UDim2.new(1, 0, 0, 15)
+MouseLiveLabel.Position = UDim2.new(0, 0, 0, 392)
+MouseLiveLabel.BackgroundTransparency = 1
+MouseLiveLabel.Text = "Mouse: (0, 0)"
+MouseLiveLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+MouseLiveLabel.TextSize = 11
+MouseLiveLabel.Font = Enum.Font.SourceSans
+MouseLiveLabel.Parent = MainFrame
+
+UIS.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        local pos = UIS:GetMouseLocation()
+        MouseLiveLabel.Text = string.format("Mouse: (%d, %d)", pos.X, pos.Y)
+    end
+end)
+
+--==================================================
+-- KEYBINDS (G, H, J)
 --==================================================
 
 UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -486,6 +696,171 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
 
     if input.KeyCode == Enum.KeyCode.G then
         toggleTeleport()
+    elseif input.KeyCode == Enum.KeyCode.H then
+        ToggleAutoClick()
+    elseif input.KeyCode == Enum.KeyCode.J then
+        SetLockedPosition(UIS:GetMouseLocation())
+    end
+end)
+
+--==================================================
+-- CHARACTER RESPAWN & DEATH TRIGGER
+--==================================================
+
+local function onCharacterAdded(character)
+    currentCharacter = character
+
+    if HitboxEnabled then
+        setupHitbox(character)
+    end
+
+    -- Automatically turn on and latch auto-clicker if player dies
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    if humanoid then
+        humanoid.Died:Connect(function()
+            if AutoTriggerSafeZone and not AutoClickEnabled then
+                AutoClickEnabled = true
+                UpdateAutoClickUI()
+            end
+        end)
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+if LocalPlayer.Character then
+    onCharacterAdded(LocalPlayer.Character)
+end
+
+--==================================================
+-- THIRD BOSS SAFE ZONE DISTANCE & CHECK
+--==================================================
+
+local function getDistanceToSafeZone()
+    local safeZones = workspace:FindFirstChild("thirdBossSafeZones", true)
+    if not safeZones then
+        return nil, false
+    end
+
+    -- Use hitbox position, fallback to HumanoidRootPart
+    local checkPos
+    if hitbox and hitbox.Parent then
+        checkPos = hitbox.Position
+    else
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            checkPos = root.Position
+        else
+            return nil, false
+        end
+    end
+
+    local minDistance = math.huge
+    local isInside = false
+
+    local zoneParts = safeZones:IsA("BasePart") and {safeZones} or safeZones:GetDescendants()
+    for _, part in ipairs(zoneParts) do
+        if part:IsA("BasePart") then
+            local localPos = part.CFrame:PointToObjectSpace(checkPos)
+            local half = part.Size / 2
+
+            -- Bounding box containment check with 2-stud buffer
+            if math.abs(localPos.X) <= (half.X + 2)
+                and math.abs(localPos.Y) <= (half.Y + 2)
+                and math.abs(localPos.Z) <= (half.Z + 2) then
+                isInside = true
+                minDistance = 0
+                break
+            end
+
+            -- Closest point on safe zone part surface
+            local clamped = Vector3.new(
+                math.clamp(localPos.X, -half.X, half.X),
+                math.clamp(localPos.Y, -half.Y, half.Y),
+                math.clamp(localPos.Z, -half.Z, half.Z)
+            )
+            local worldClosest = part.CFrame:PointToWorldSpace(clamped)
+            local dist = (checkPos - worldClosest).Magnitude
+
+            if dist < minDistance then
+                minDistance = dist
+            end
+        end
+    end
+
+    if minDistance == math.huge then
+        return nil, false
+    end
+
+    return minDistance, isInside
+end
+
+--==================================================
+-- AUTO CLICK LOOP WITH LATCHING SAFE ZONE & DEATH TRIGGER
+--==================================================
+
+task.spawn(function()
+    while ScreenGui.Parent do
+        local dist, inside = getDistanceToSafeZone()
+
+        -- Check health for instant death trigger
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local isDead = hum ~= nil and hum.Health <= 0
+
+        if isDead and AutoTriggerSafeZone and not AutoClickEnabled then
+            AutoClickEnabled = true
+            UpdateAutoClickUI()
+        end
+
+        -- Update Distance and Status Labels
+        if dist == nil then
+            ZoneDistLabel.Text = "Safe Zone: Not Found"
+            ZoneDistLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+            ZoneStatusLabel.Text = isDead and "Status: DIED (Latched ON)" or "Zone: UNKNOWN"
+            ZoneStatusLabel.TextColor3 = isDead and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(150, 150, 150)
+        elseif isDead then
+            ZoneDistLabel.Text = string.format("Zone Dist: %.1f studs (DEAD)", dist)
+            ZoneDistLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            ZoneStatusLabel.Text = "Status: DIED (Latched ON)"
+            ZoneStatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        elseif inside then
+            ZoneDistLabel.Text = "Zone Dist: 0 studs (INSIDE)"
+            ZoneDistLabel.TextColor3 = Color3.fromRGB(50, 220, 80)
+            ZoneStatusLabel.Text = "Zone: INSIDE (Active)"
+            ZoneStatusLabel.TextColor3 = Color3.fromRGB(50, 220, 80)
+
+            -- Automatically turn ON upon entering safe zone
+            if AutoTriggerSafeZone and not AutoClickEnabled then
+                AutoClickEnabled = true
+                UpdateAutoClickUI()
+            end
+        else
+            ZoneDistLabel.Text = string.format("Zone Dist: %.1f studs", dist)
+            ZoneDistLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+
+            if AutoClickEnabled then
+                ZoneStatusLabel.Text = "Zone: OUTSIDE (Latched ON)"
+                ZoneStatusLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+            else
+                ZoneStatusLabel.Text = "Zone: OUTSIDE (Click: OFF)"
+                ZoneStatusLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+            end
+            -- Note: Remains ON even after stepping outside (latched)
+        end
+
+        -- Click Execution
+        if AutoClickEnabled then
+            local target = LockedPos or UIS:GetMouseLocation()
+            VIM:SendMouseButtonEvent(target.X, target.Y, 0, true, game, 0)
+            task.wait(0.01)
+            VIM:SendMouseButtonEvent(target.X, target.Y, 0, false, game, 0)
+
+            task.wait(AutoClickDelay)
+        else
+            task.wait(0.05)
+        end
     end
 end)
 
@@ -600,6 +975,7 @@ task.spawn(function()
                 resettingCharacter = true
 
                 local MyCharacter = LocalPlayer.Character
+
                 local MyHumanoid = MyCharacter
                     and MyCharacter:FindFirstChildOfClass("Humanoid")
 
